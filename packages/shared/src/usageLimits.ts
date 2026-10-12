@@ -691,15 +691,6 @@ export function withUsageLimitsCommands(
   });
 }
 
-const USAGE_LIMIT_SOURCE_LABELS = {
-  cliproxy: "CLI Proxy",
-  codexbar: "CodexBar",
-} as const satisfies Record<UsageLimitSourceSnapshots[number]["kind"], string>;
-
-export function usageLimitSourceKindLabel(kind: UsageLimitSourceSnapshots[number]["kind"]) {
-  return USAGE_LIMIT_SOURCE_LABELS[kind];
-}
-
 /** A point-in-time report; never refreshes or guesses which pooled account serves a turn. */
 export function collectProviderUsageLimits(
   instanceId: ProviderInstanceId,
@@ -709,9 +700,56 @@ export function collectProviderUsageLimits(
 ): UsageLimitsReport | null {
   const selected = providers.find((provider) => provider.instanceId === instanceId);
   if (!selected || !hasProviderUsageLimits(selected.driver, providers, sources)) return null;
-  const native = providersWithLimits(providers).filter(
-    (provider) => provider.driver === selected.driver,
-  );
+  return collectDriverUsageLimits(selected.driver, providers, sources, now);
+}
+
+/**
+ * Every driver's report merged, for clients outside the app (HTTP, MCP) that
+ * want the whole environment at once. Source-only drivers, such as a CodexBar
+ * provider with no T3 adapter, are included; a failed source is noted once.
+ */
+export function collectEnvironmentUsageLimits(
+  providers: readonly ServerProvider[],
+  sources: UsageLimitSourceSnapshots,
+  now: number,
+): UsageLimitsReport {
+  const drivers = new Set<ServerProvider["driver"]>([
+    ...providersWithLimits(providers).map((provider) => provider.driver),
+    ...sources.flatMap((source) => source.accounts.map((account) => account.driver)),
+  ]);
+  const accounts: Array<UsageLimitsReport["accounts"][number]> = [];
+  const notices = new Set<string>();
+  for (const driver of drivers) {
+    const report = collectDriverUsageLimits(driver, providers, sources, now);
+    accounts.push(...report.accounts);
+    for (const notice of report.notices) notices.add(notice);
+  }
+  for (const source of sources) {
+    if (source.error) notices.add(`${source.label}: ${source.error}`);
+  }
+  return {
+    createdAt: DateTime.formatIso(DateTime.makeUnsafe(now)),
+    accounts,
+    notices: [...notices],
+  };
+}
+
+const USAGE_LIMIT_SOURCE_LABELS = {
+  cliproxy: "CLI Proxy",
+  codexbar: "CodexBar",
+} as const satisfies Record<UsageLimitSourceSnapshots[number]["kind"], string>;
+
+export function usageLimitSourceKindLabel(kind: UsageLimitSourceSnapshots[number]["kind"]) {
+  return USAGE_LIMIT_SOURCE_LABELS[kind];
+}
+
+function collectDriverUsageLimits(
+  driver: ServerProvider["driver"],
+  providers: readonly ServerProvider[],
+  sources: UsageLimitSourceSnapshots,
+  now: number,
+): UsageLimitsReport {
+  const native = providersWithLimits(providers).filter((provider) => provider.driver === driver);
   const resolveKey = accountKeyResolver([
     ...providers.filter((provider) => provider.enabled).map(nativeReport),
     ...sources.flatMap((source) => source.accounts),
@@ -779,7 +817,7 @@ export function collectProviderUsageLimits(
     });
   }
   for (const source of sources) {
-    const matching = source.accounts.filter((account) => account.driver === selected.driver);
+    const matching = source.accounts.filter((account) => account.driver === driver);
     for (const account of matching) {
       const key = resolveKey(account);
       if (key && nativeAccounts.has(key)) continue;

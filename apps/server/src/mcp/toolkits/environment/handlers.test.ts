@@ -1,7 +1,9 @@
 import { expect, it } from "@effect/vitest";
 import {
   DEFAULT_SERVER_SETTINGS,
+  type EnvironmentUsageLimits as EnvironmentUsageLimitsPayload,
   EnvironmentId,
+  ProviderDriverKind,
   ProviderInstanceId,
   ThreadId,
   type OrchestrationV2ThreadShell,
@@ -18,6 +20,7 @@ import * as Environment from "../../../environment/ServerEnvironment.ts";
 import * as ThreadCommandExecutor from "../../../orchestration-v2/ThreadCommandExecutor.ts";
 import * as ThreadManagement from "../../../orchestration-v2/ThreadManagementService.ts";
 import * as Settings from "../../../serverSettings.ts";
+import * as EnvironmentUsageLimits from "../../../usage/EnvironmentUsageLimits.ts";
 import * as McpHttpServer from "../../McpHttpServer.ts";
 import * as McpInvocationContext from "../../McpInvocationContext.ts";
 import * as McpToolAccess from "../../McpToolAccess.ts";
@@ -47,6 +50,24 @@ const layerEnvironment = Layer.mock(Environment.ServerEnvironment)({
     serverVersion: "0.0.0",
     capabilities: { repositoryIdentity: false },
   }),
+});
+
+const usageSnapshot: EnvironmentUsageLimitsPayload = {
+  schemaVersion: 1,
+  createdAt: "2026-10-12T06:00:00.000Z",
+  accounts: [],
+  notices: ["Hub: offline"],
+  activity: [
+    {
+      instanceId: ProviderInstanceId.make("codex"),
+      driver: ProviderDriverKind.make("codex"),
+      runningThreads: 1,
+      limitedThreads: 0,
+    },
+  ],
+};
+const layerUsage = Layer.mock(EnvironmentUsageLimits.EnvironmentUsageLimits)({
+  snapshot: Effect.succeed(usageSnapshot),
 });
 
 it.effect("updates preferences for a thread caller through the /mcp registration", () =>
@@ -88,6 +109,51 @@ it.effect("updates preferences for a thread caller through the /mcp registration
         ),
         Layer.provide(layerEnvironment),
         Layer.provide(Settings.layerTest()),
+        Layer.provide(layerUsage),
+      ),
+    ),
+  ),
+);
+
+it.effect("reads the environment's usage limits for a thread caller", () =>
+  Effect.gen(function* () {
+    const server = yield* McpServer.McpServer;
+    const result = yield* server.callTool({ name: "t3_usage_limits", arguments: {} }).pipe(
+      Effect.provideService(McpInvocationContext.McpInvocationContext, caller),
+      Effect.provideService(
+        McpSchema.McpServerClient,
+        McpSchema.McpServerClient.of({
+          clientId: 1,
+          protocolVersion: "2025-06-18",
+          clientCapabilities: {},
+          clientInfo: { name: "usage", version: "1" },
+          initializePayload: {
+            protocolVersion: "2025-06-18",
+            capabilities: {},
+            clientInfo: { name: "usage", version: "1" },
+          },
+          getClient: Effect.die("unused"),
+        }),
+      ),
+    );
+    expect(result.isError).toBe(false);
+    expect(result.structuredContent).toMatchObject({
+      schemaVersion: 1,
+      notices: ["Hub: offline"],
+      activity: [{ instanceId: "codex", runningThreads: 1 }],
+    });
+  }).pipe(
+    Effect.provide(
+      McpHttpServer.layerEnvironmentToolkit.pipe(
+        Layer.provideMerge(McpServer.McpServer.layer),
+        Layer.provide(
+          Layer.mock(ThreadManagement.ThreadManagementService)({
+            getThreadShell: (id) => Effect.succeed(liveThreadShell(id)),
+          }),
+        ),
+        Layer.provide(layerEnvironment),
+        Layer.provide(Settings.layerTest()),
+        Layer.provide(layerUsage),
       ),
     ),
   ),

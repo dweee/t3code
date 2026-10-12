@@ -11,6 +11,7 @@ import {
   type LimitAccount,
   isUsageLimitsCommand,
   collectProviderUsageLimits,
+  collectEnvironmentUsageLimits,
   sameUsageLimitCommandCoverage,
   withUsageLimitsCommands,
   collectLimitAccounts,
@@ -1465,5 +1466,67 @@ describe("Antigravity limit presentation", () => {
       "3p-weekly",
     ]);
     expect(windows.map((window) => window.remainingPercent)).toEqual([80, 90, 10, 0]);
+  });
+});
+
+describe("collectEnvironmentUsageLimits", () => {
+  const limits = { checkedAt: "2026-09-03T11:00:00.000Z", windows: [window] };
+  const codex = provider({
+    usageLimits: limits,
+    auth: { status: "authenticated", email: "same@example.com" },
+  });
+
+  it("reports every driver, including ones only a CodexBar source knows", () => {
+    const report = collectEnvironmentUsageLimits(
+      [codex],
+      [
+        {
+          id: UsageLimitSourceId.make("mac"),
+          kind: "codexbar",
+          label: "Mac",
+          checkedAt: limits.checkedAt,
+          accounts: [
+            { id: "codex", driver: codex.driver, email: "SAME@example.com", usageLimits: limits },
+            {
+              id: "openrouter",
+              driver: ProviderDriverKind.make("openrouter"),
+              usageLimits: limits,
+            },
+          ],
+        },
+      ],
+      now,
+    );
+    expect(report.accounts.map((account) => [account.id, account.sourceLabel])).toEqual([
+      ["codex", undefined],
+      ["mac:openrouter", "CodexBar"],
+    ]);
+    expect(report.notices).toEqual([]);
+  });
+
+  it("notes a failed source once rather than once per driver", () => {
+    const report = collectEnvironmentUsageLimits(
+      [
+        codex,
+        provider({
+          ...codex,
+          instanceId: ProviderInstanceId.make("claude"),
+          driver: ProviderDriverKind.make("claudeAgent"),
+        }),
+      ],
+      [
+        {
+          id: UsageLimitSourceId.make("hub"),
+          kind: "cliproxy",
+          label: "Hub",
+          checkedAt: limits.checkedAt,
+          accounts: [],
+          error: "Offline.",
+        },
+      ],
+      now,
+    );
+    expect(report.notices).toEqual(["Hub: Offline."]);
+    expect(report.accounts).toHaveLength(2);
   });
 });
