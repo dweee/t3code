@@ -20,6 +20,11 @@ describe("T3 orchestration provider instructions", () => {
     );
   });
 
+  it("asks orchestrators to check quota before delegating", () => {
+    assert.include(T3_CODE_ORCHESTRATION_INSTRUCTIONS, "call `t3_usage_limits`");
+    assert.include(T3_CODE_ORCHESTRATION_INSTRUCTIONS, "out of quota until `resetsAt`");
+  });
+
   it("documents structured schedules instead of JSON strings", () => {
     assert.include(T3_CODE_ORCHESTRATION_INSTRUCTIONS, "structured object, never as JSON text");
     assert.include(T3_CODE_ORCHESTRATION_INSTRUCTIONS, '"everyMs":3600000');
