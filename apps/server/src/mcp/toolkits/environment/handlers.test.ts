@@ -2,6 +2,8 @@ import { expect, it } from "@effect/vitest";
 import {
   DEFAULT_SERVER_SETTINGS,
   EnvironmentId,
+  type EnvironmentUsageLimits as EnvironmentUsageLimitsPayload,
+  ProviderDriverKind,
   ProviderInstanceId,
   ThreadId,
   type OrchestrationV2ThreadShell,
@@ -17,6 +19,7 @@ import * as Environment from "../../../environment/ServerEnvironment.ts";
 import * as ThreadCommandExecutor from "../../../orchestration-v2/ThreadCommandExecutor.ts";
 import * as ThreadManagement from "../../../orchestration-v2/ThreadManagementService.ts";
 import * as Settings from "../../../serverSettings.ts";
+import * as EnvironmentUsageLimits from "../../../usage/EnvironmentUsageLimits.ts";
 import * as McpInvocationContext from "../../McpInvocationContext.ts";
 import * as McpToolAccess from "../../McpToolAccess.ts";
 import { liveThreadShell } from "../../McpToolAccess.testkit.ts";
@@ -93,5 +96,72 @@ it.effect("refuses a preferences update when the caller's turn ends while it wai
         ),
       ),
     );
+  }),
+);
+
+it.effect("reads the environment's usage limits for a thread caller", () =>
+  Effect.gen(function* () {
+    const usageSnapshot: EnvironmentUsageLimitsPayload = {
+      schemaVersion: 1,
+      createdAt: "2026-10-12T06:00:00.000Z",
+      accounts: [],
+      notices: ["Hub: offline"],
+      activity: [
+        {
+          instanceId: ProviderInstanceId.make("codex"),
+          driver: ProviderDriverKind.make("codex"),
+          runningThreads: 1,
+          limitedThreads: 0,
+        },
+      ],
+    };
+    const layerDependencies = Layer.mergeAll(
+      ThreadCommandExecutor.layer,
+      Layer.succeed(McpInvocationContext.McpInvocationContext, {
+        environmentId,
+        requestNamespace: "provider:usage",
+        thread: {
+          threadId,
+          providerSessionId: "provider:usage",
+          providerInstanceId: ProviderInstanceId.make("codex"),
+        },
+        client: undefined,
+        capabilities: new Set(["orchestration" as const]),
+        issuedAt: 0,
+      }),
+      Layer.mock(ThreadManagement.ThreadManagementService)({
+        getThreadShell: (id) => Effect.succeed(liveThreadShell(id)),
+      }),
+      Layer.mock(Environment.ServerEnvironment)({
+        getDescriptor: Effect.succeed({
+          environmentId,
+          label: "Test",
+          platform: { os: "linux", arch: "x64" },
+          serverVersion: "0.0.0",
+          capabilities: { repositoryIdentity: false },
+        }),
+      }),
+      Layer.mock(Settings.ServerSettingsService)({
+        getSettings: Effect.succeed(DEFAULT_SERVER_SETTINGS),
+      }),
+      Layer.mock(EnvironmentUsageLimits.EnvironmentUsageLimits)({
+        snapshot: Effect.succeed(usageSnapshot),
+      }),
+    );
+    const result = yield* Effect.gen(function* () {
+      const toolkit = yield* EnvironmentToolkit;
+      return yield* toolkit.handle("t3_usage_limits", {}).pipe(Stream.unwrap, Stream.runCollect);
+    }).pipe(
+      Effect.provide(
+        McpToolAccess.HandlersLayer.layer(EnvironmentHandlers.layer).pipe(
+          Layer.provideMerge(layerDependencies),
+        ),
+      ),
+    );
+    expect(result.at(-1)?.result).toMatchObject({
+      schemaVersion: 1,
+      notices: ["Hub: offline"],
+      activity: [{ instanceId: "codex", runningThreads: 1 }],
+    });
   }),
 );

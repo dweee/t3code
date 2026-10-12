@@ -135,3 +135,29 @@ export const UsageLimitsReport = Schema.Struct({
   notices: Schema.Array(Schema.String),
 });
 export type UsageLimitsReport = typeof UsageLimitsReport.Type;
+
+/**
+ * What one provider instance's threads are doing with its quota. Counts cover
+ * unarchived, unsettled threads; a limited thread failed on a usage limit whose
+ * reset is still ahead.
+ */
+export const UsageLimitsActivity = Schema.Struct({
+  instanceId: ProviderInstanceId,
+  driver: ProviderDriverKind,
+  runningThreads: NonNegativeInt,
+  limitedThreads: NonNegativeInt,
+  nextLimitResetAt: Schema.optional(IsoDateTime),
+});
+export type UsageLimitsActivity = typeof UsageLimitsActivity.Type;
+
+/**
+ * The whole environment's limits for clients outside the app: the HTTP
+ * `/api/usage/limits` route and the `t3_usage_limits` MCP tool. The version
+ * changes only when a field changes meaning; new fields are additive.
+ */
+export const EnvironmentUsageLimits = Schema.Struct({
+  schemaVersion: Schema.Literal(1),
+  ...UsageLimitsReport.fields,
+  activity: Schema.Array(UsageLimitsActivity),
+});
+export type EnvironmentUsageLimits = typeof EnvironmentUsageLimits.Type;

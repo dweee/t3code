@@ -1,6 +1,7 @@
 import {
   BackgroundActivityProfile,
   BackgroundActivityProfileSelection,
+  EnvironmentUsageLimits,
   ExecutionEnvironmentDescriptor,
   OrchestratorMcpEnvironmentTarget,
   OrchestratorMcpFailure,
@@ -13,6 +14,7 @@ import * as ServerEnvironment from "../../../environment/ServerEnvironment.ts";
 import * as ThreadCommandExecutor from "../../../orchestration-v2/ThreadCommandExecutor.ts";
 import * as ThreadManagementService from "../../../orchestration-v2/ThreadManagementService.ts";
 import * as Settings from "../../../serverSettings.ts";
+import * as EnvironmentUsageLimitsService from "../../../usage/EnvironmentUsageLimits.ts";
 import * as McpInvocationContext from "../../McpInvocationContext.ts";
 
 const PreferenceFields = {
@@ -67,4 +69,17 @@ const EnvironmentPreferencesTool = Tool.make("t3_environment_preferences_update"
   }),
   success: Schema.Struct(PreferenceFields),
 }).annotate(Tool.Destructive, true);
-export const EnvironmentToolkit = Toolkit.make(EnvironmentReadTool, EnvironmentPreferencesTool);
+const UsageLimitsTool = Tool.make("t3_usage_limits", {
+  ...shared,
+  dependencies: [...shared.dependencies, EnvironmentUsageLimitsService.EnvironmentUsageLimits],
+  description:
+    "Read subscription usage limits for every provider account this environment knows, including configured usage-limit sources such as CodexBar, plus how many threads per provider instance are running or waiting for a limit reset. Check this before delegating large work: usedPercent near 100 or a limited thread means that provider is out of quota until resetsAt.",
+  success: EnvironmentUsageLimits,
+})
+  .annotate(Tool.Readonly, true)
+  .annotate(Tool.Destructive, false);
+export const EnvironmentToolkit = Toolkit.make(
+  EnvironmentReadTool,
+  EnvironmentPreferencesTool,
+  UsageLimitsTool,
+);

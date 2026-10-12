@@ -755,6 +755,41 @@ export function collectProviderUsageLimits(
 ): UsageLimitsReport | null {
   const selected = providers.find((provider) => provider.instanceId === instanceId);
   if (!selected || !hasProviderUsageLimits(selected.driver, providers, sources)) return null;
+  return collectDriverUsageLimits(selected.driver, providers, sources, now);
+}
+
+export function collectEnvironmentUsageLimits(
+  providers: readonly ServerProvider[],
+  sources: UsageLimitSourceSnapshots,
+  now: number,
+): UsageLimitsReport {
+  const drivers = new Set<ServerProvider["driver"]>([
+    ...providersWithLimits(providers).map((provider) => provider.driver),
+    ...sources.flatMap((source) => source.accounts.map((account) => account.driver)),
+  ]);
+  const accounts: Array<UsageLimitsReport["accounts"][number]> = [];
+  const notices = new Set<string>();
+  for (const driver of drivers) {
+    const report = collectDriverUsageLimits(driver, providers, sources, now);
+    accounts.push(...report.accounts);
+    for (const notice of report.notices) notices.add(notice);
+  }
+  for (const source of sources) {
+    if (source.error) notices.add(`${source.label}: ${source.error}`);
+  }
+  return {
+    createdAt: DateTime.formatIso(DateTime.makeUnsafe(now)),
+    accounts,
+    notices: [...notices],
+  };
+}
+
+function collectDriverUsageLimits(
+  driver: ServerProvider["driver"],
+  providers: readonly ServerProvider[],
+  sources: UsageLimitSourceSnapshots,
+  now: number,
+): UsageLimitsReport {
   const resolveKey = accountKeyResolver([
     ...providers.filter((provider) => provider.enabled).map(nativeReport),
     ...sources.flatMap((source) => source.accounts),
@@ -765,7 +800,7 @@ export function collectProviderUsageLimits(
     { usage: NativeSnapshot; credits: NativeSnapshot | null }
   >();
   for (const provider of providersWithLimits(providers)) {
-    if (provider.driver !== selected.driver || !provider.usageLimits) continue;
+    if (provider.driver !== driver || !provider.usageLimits) continue;
     const snapshot = { provider, limits: provider.usageLimits };
     const key = resolveKey(nativeReport(provider)) ?? `instance:${provider.instanceId}`;
     const previous = nativeByAccount.get(key);
@@ -845,7 +880,7 @@ export function collectProviderUsageLimits(
     });
   }
   for (const source of sources) {
-    const matching = source.accounts.filter((account) => account.driver === selected.driver);
+    const matching = source.accounts.filter((account) => account.driver === driver);
     for (const account of matching) {
       const key = resolveKey(account);
       if (key && nativeAccountKeys.has(key)) continue;

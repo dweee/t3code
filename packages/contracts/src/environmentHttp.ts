@@ -62,6 +62,7 @@ import {
   PullRequestOperationError,
   PullRequestUnavailableError,
 } from "./pullRequest.ts";
+import { EnvironmentUsageLimits } from "./providerUsageLimits.ts";
 import {
   RelayCloudEnvironmentHealthRequest,
   RelayCloudMintCredentialRequest,
@@ -756,6 +757,19 @@ class EnvironmentPullRequestsHttpApi extends HttpApiGroup.make("pullRequests").a
   }).middleware(EnvironmentAuthenticatedAuth),
 ) {}
 
+/**
+ * Read-only quota for clients outside the app (CodexBar, phones, scripts).
+ * A bearer session with `orchestration:read` is enough; see
+ * `t3 auth session issue --scope orchestration:read`.
+ */
+class EnvironmentUsageHttpApi extends HttpApiGroup.make("usage").add(
+  HttpApiEndpoint.get("limits", "/api/usage/limits", {
+    headers: OptionalBearerHeaders,
+    success: EnvironmentUsageLimits,
+    error: [EnvironmentAuthInvalidError, EnvironmentScopeRequiredError, EnvironmentInternalError],
+  }).middleware(EnvironmentAuthenticatedAuth),
+) {}
+
 class EnvironmentConnectHttpApi extends HttpApiGroup.make("connect")
   .add(
     HttpApiEndpoint.post("linkProof", "/api/connect/link-proof", {
@@ -843,6 +857,7 @@ export class EnvironmentHttpApi extends HttpApi.make("environment")
   .add(EnvironmentMcpOAuthHttpApi)
   .add(EnvironmentOrchestrationHttpApi)
   .add(EnvironmentPullRequestsHttpApi)
+  .add(EnvironmentUsageHttpApi)
   .add(EnvironmentProjectsHttpApi)
   .add(EnvironmentConnectHttpApi)
   .add(EnvironmentWebhooksHttpApi) {}

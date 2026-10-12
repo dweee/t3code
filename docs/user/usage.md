@@ -172,6 +172,17 @@ VPN such as Tailscale, because the dashboard speaks plain HTTP.
 CodexBar's providers appear under **Usage → Limits**. A CodexBar account that matches one this
 environment already reports is shown once.
 
+## Read limits from other apps and agents
+
+Other apps can read this environment's limits, and what its threads are doing with them, from
+`GET /api/usage/limits`. Issue a read-only token on the server with
+`t3 auth session issue --scope orchestration:read --token-only` and send it as
+`Authorization: Bearer <token>`. The response lists every account's windows, notices, and per
+provider the number of running threads and threads waiting for a limit reset.
+
+Agents in T3 threads, and outside agents signed in to `/mcp`, read the same report with the
+`t3_usage_limits` tool. Ask an orchestrating agent to check it before delegating large work.
+
 ## Subscription usage widget
 
 Add **Subscription usage** from your iOS or Android widget gallery to see remaining Codex and

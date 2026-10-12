@@ -3,6 +3,7 @@ import * as Effect from "effect/Effect";
 import * as Environment from "../../../environment/ServerEnvironment.ts";
 import * as ThreadCommandExecutor from "../../../orchestration-v2/ThreadCommandExecutor.ts";
 import * as Settings from "../../../serverSettings.ts";
+import * as EnvironmentUsageLimits from "../../../usage/EnvironmentUsageLimits.ts";
 import * as McpInvocationContext from "../../McpInvocationContext.ts";
 import * as McpToolAccess from "../../McpToolAccess.ts";
 import { readCaller, unavailable } from "../../threadAccess.ts";
@@ -52,6 +53,13 @@ export const layer = McpToolAccess.toLayer(EnvironmentToolkit, {
         platform: descriptor.platform,
         preferences: preferences(current),
       };
+    }),
+  ),
+  t3_usage_limits: McpToolAccess.reads(() =>
+    Effect.gen(function* () {
+      yield* access;
+      const usage = yield* EnvironmentUsageLimits.EnvironmentUsageLimits;
+      return yield* usage.snapshot;
     }),
   ),
   t3_environment_preferences_update: McpToolAccess.writesEnvironment((patch, check) =>
