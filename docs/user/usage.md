@@ -123,8 +123,9 @@ using a proxy through `ANTHROPIC_AUTH_TOKEN`.
 
 ## Connect a CLIProxyAPI hub
 
-To see pooled accounts, open **Settings → Providers → Usage providers → Add hub**. Choose the
-environment that will connect to the hub and enter its URL and management key.
+To see pooled accounts, open **Settings → Providers → Usage providers → Add source** and choose
+**CLIProxyAPI hub**. Choose the environment that will connect to the hub and enter its URL and
+management key.
 
 The accounts appear under **Usage → Limits**. Codex accounts show banked reset credits; select an
 account and choose **Use reset** to redeem one. No hub plugin is required.
@@ -132,6 +133,18 @@ account and choose **Use reset** to redeem one. No hub plugin is required.
 This connection supplies usage information; configure
 the provider separately to send agent requests through the hub. Remove the hub from the same
 settings section when you no longer need it.
+
+## Connect CodexBar
+
+To see every provider [CodexBar](https://github.com/steipete/CodexBar) tracks, run
+`codexbar serve` on a machine the environment can reach, then open **Settings → Providers →
+Usage providers → Add source** and choose **CodexBar**. Enter the dashboard URL, such as
+`http://127.0.0.1:8080`, and its dashboard token. A loopback dashboard needs no token; off
+loopback, start `codexbar serve` with `CODEXBAR_DASHBOARD_TOKEN` and keep the connection inside a
+VPN such as Tailscale, because the dashboard speaks plain HTTP.
+
+CodexBar's providers appear under **Usage → Limits**. A CodexBar account that matches one this
+environment already reports is shown once.
 
 ## Subscription usage widget
 

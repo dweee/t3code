@@ -812,13 +812,18 @@ export const AntigravitySettings = makeProviderSettingsSchema(
 export type AntigravitySettings = typeof AntigravitySettings.Type;
 
 /**
- * A read-only quota source outside this environment's provider CLIs. The
- * only kind today is a CLIProxyAPI hub, whose management API reports the
- * windows of every pooled account. The key travels in settings for now, like
- * provider environment secrets; it is redacted before reaching a client.
+ * A read-only quota source outside this environment's provider CLIs: a
+ * CLIProxyAPI hub, whose management API reports the windows of every pooled
+ * account, or a `codexbar serve` dashboard, which reports every provider
+ * CodexBar tracks. `managementKey` holds the hub's management key or the
+ * dashboard's bearer token. It travels in settings for now, like provider
+ * environment secrets; it is redacted before reaching a client.
  */
+export const UsageLimitSourceKind = Schema.Literals(["cliproxy", "codexbar"]);
+export type UsageLimitSourceKind = typeof UsageLimitSourceKind.Type;
+
 export const UsageLimitSourceConfig = Schema.Struct({
-  kind: Schema.Literal("cliproxy"),
+  kind: UsageLimitSourceKind,
   label: Schema.optional(TrimmedNonEmptyString),
   url: TrimmedNonEmptyString,
   managementKey: TrimmedString.pipe(Schema.withDecodingDefault(Effect.succeed("")), secretSetting),

@@ -1,5 +1,6 @@
 import type { EnvironmentId, UnifiedSettings } from "@t3tools/contracts";
 import { useAtomValue } from "@effect/atom-react";
+import { usageLimitSourceKindLabel } from "@t3tools/shared/usageLimits";
 import { PlusIcon } from "lucide-react";
 import { useState } from "react";
 
@@ -71,7 +72,7 @@ export function UsageProviderSettings({
           !readOnly ? (
             <Button size="xs" variant="outline" onClick={() => setAdding(true)}>
               <PlusIcon className="size-3" aria-hidden />
-              Add hub
+              Add source
             </Button>
           ) : null
         }
@@ -92,7 +93,7 @@ export function UsageProviderSettings({
           />
         ) : null}
         {entries.length === 0 ? (
-          <SettingsRow title="No hubs configured." />
+          <SettingsRow title="No hubs or dashboards configured." />
         ) : (
           entries.map(([id, source]) => {
             const label = source.label?.trim() || source.url;
@@ -102,7 +103,8 @@ export function UsageProviderSettings({
                 title={label}
                 description={
                   <span className="break-all">
-                    CLI Proxy{source.enabled ? "" : " · Disabled"}
+                    {usageLimitSourceKindLabel(source.kind)}
+                    {source.enabled ? "" : " · Disabled"}
                     {label !== source.url ? ` · ${source.url}` : ""}
                   </span>
                 }
@@ -131,7 +133,7 @@ export function UsageProviderSettings({
   );
 }
 
-/** Removing a hub deletes its stored management key, so it requires confirmation. */
+/** Removing a source deletes its stored key or token, so it requires confirmation. */
 function RemoveUsageProviderButton({
   label,
   onConfirm,
@@ -150,9 +152,9 @@ function RemoveUsageProviderButton({
           <AlertDialogHeader>
             <AlertDialogTitle>Remove {label}?</AlertDialogTitle>
             <AlertDialogDescription>
-              The hub's management key is deleted from this server. Its accounts leave the Limits
-              view; the hub itself is untouched. Add it again with the URL and key to bring them
-              back.
+              Its stored key or token is deleted from this server. Its accounts leave the Limits
+              view; the hub or dashboard itself is untouched. Add it again with the URL and key to
+              bring them back.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -164,7 +166,7 @@ function RemoveUsageProviderButton({
                 onConfirm();
               }}
             >
-              Remove hub
+              Remove source
             </Button>
           </AlertDialogFooter>
         </AlertDialogPopup>

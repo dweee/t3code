@@ -1,6 +1,7 @@
 /**
  * UsageLimitSources — quota from places this environment cannot run turns
- * on, today a CLIProxyAPI hub pooling several subscription accounts.
+ * on: a CLIProxyAPI hub pooling several subscription accounts, or a
+ * `codexbar serve` dashboard reporting every provider CodexBar tracks.
  *
  * Each configured `settings.usageLimitSources` entry is polled on the
  * provider health-check interval and on every settings change, then
@@ -36,6 +37,7 @@ import * as Stream from "effect/Stream";
 import * as BackgroundPolicy from "../background/BackgroundPolicy.ts";
 import * as Settings from "../serverSettings.ts";
 import { makeCliproxyApi } from "./cliproxyApi.ts";
+import { makeCodexbarApi } from "./codexbarApi.ts";
 
 export class UsageLimitSources extends Context.Service<
   UsageLimitSources,
@@ -63,6 +65,7 @@ function sourceLabel(id: string, config: UsageLimitSourceConfig): string {
 /** @public Service construction is part of the canonical Effect module API. */
 export const make = Effect.gen(function* () {
   const api = yield* makeCliproxyApi;
+  const codexbar = yield* makeCodexbarApi;
   const settingsService = yield* Settings.ServerSettingsService;
   const backgroundPolicy = yield* BackgroundPolicy.BackgroundPolicy;
   const stateRef = yield* Ref.make<ReadonlyArray<UsageLimitSourceSnapshot>>([]);
@@ -77,10 +80,12 @@ export const make = Effect.gen(function* () {
   ) {
     const checkedAt = DateTime.formatIso(yield* DateTime.now);
     const base = { id, kind: config.kind, label: sourceLabel(id, config), checkedAt } as const;
-    if (config.managementKey.length === 0) {
+    // A loopback `codexbar serve` needs no token; a hub always needs its key.
+    if (config.kind === "cliproxy" && config.managementKey.length === 0) {
       return { ...base, accounts: [], error: "No management key configured." };
     }
-    const accounts = yield* api.readAccounts(config).pipe(Effect.result);
+    const read = config.kind === "codexbar" ? codexbar.readAccounts : api.readAccounts;
+    const accounts = yield* read(config).pipe(Effect.result);
     if (accounts._tag === "Failure") {
       yield* Effect.logDebug("usage limit source read failed", { id, cause: accounts.failure });
       return { ...base, accounts: [], error: accounts.failure.detail };
@@ -124,7 +129,7 @@ export const make = Effect.gen(function* () {
         ),
       );
       const config = settings.usageLimitSources[input.sourceId];
-      if (!config?.enabled || !config.managementKey) {
+      if (!config?.enabled || config.kind !== "cliproxy" || !config.managementKey) {
         return yield* new UsageLimitSourceError({
           detail: "The usage limit source is missing or disabled.",
         });
