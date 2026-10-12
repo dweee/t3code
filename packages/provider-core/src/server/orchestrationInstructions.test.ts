@@ -83,3 +83,10 @@ describe("T3 device instructions", () => {
     assert.notInclude(t3AcpPromptWithInstructions({ prompt: "Hi.", state }), "## T3 Code devices");
   });
 });
+
+describe("T3 orchestration instructions", () => {
+  it("asks orchestrators to check quota before delegating", () => {
+    assert.include(T3_CODE_ORCHESTRATION_INSTRUCTIONS, "call `t3_usage_limits`");
+    assert.include(T3_CODE_ORCHESTRATION_INSTRUCTIONS, "out of quota until `resetsAt`");
+  });
+});
