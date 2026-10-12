@@ -738,6 +738,15 @@ export function withUsageLimitsCommands(
   });
 }
 
+const USAGE_LIMIT_SOURCE_LABELS = {
+  cliproxy: "CLI Proxy",
+  codexbar: "CodexBar",
+} as const satisfies Record<UsageLimitSourceSnapshots[number]["kind"], string>;
+
+export function usageLimitSourceKindLabel(kind: UsageLimitSourceSnapshots[number]["kind"]) {
+  return USAGE_LIMIT_SOURCE_LABELS[kind];
+}
+
 export function collectProviderUsageLimits(
   instanceId: ProviderInstanceId,
   providers: readonly ServerProvider[],
@@ -844,7 +853,7 @@ export function collectProviderUsageLimits(
         id: `${source.id}:${account.id}`,
         driver: account.driver,
         label: `${source.label} · ${account.id}`,
-        sourceLabel: "CLI Proxy",
+        sourceLabel: usageLimitSourceKindLabel(source.kind),
         ...(account.usageLimits.resetCredits?.nextCreditId
           ? {
               resetCreditInput: {

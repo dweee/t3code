@@ -58,4 +58,25 @@ describe("adding usage limit sources", () => {
       },
     ]);
   });
+
+  it("keeps a CodexBar dashboard separate from a hub at the same URL", () => {
+    const url = "http://127.0.0.1:8080";
+    let settings: ServerSettings = DEFAULT_SERVER_SETTINGS;
+    for (const kind of ["cliproxy", "codexbar"] as const) {
+      settings = applyServerSettingsPatch(settings, {
+        usageLimitSources: {
+          [sourceIdFromUrl(url, settings.usageLimitSources, kind)]: {
+            kind,
+            url,
+            managementKey: "",
+            enabled: true,
+          },
+        },
+      });
+    }
+    expect(Object.keys(settings.usageLimitSources)).toEqual([
+      "cliproxy-127.0.0.1-8080",
+      "codexbar-127.0.0.1-8080",
+    ]);
+  });
 });
