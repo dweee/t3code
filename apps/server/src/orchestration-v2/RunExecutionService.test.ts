@@ -3727,7 +3727,7 @@ it.effect("records a finished run as failed when its ownership check cannot be r
   }),
 );
 
-it.effect("does not refresh pull requests for auxiliary or stale provider terminals", () =>
+it.effect("fails an ended stream that delivered only auxiliary or stale provider terminals", () =>
   Effect.gen(function* () {
     const { observed } = yield* captureRootRunTermination({
       key: "pull-request-refresh:auxiliary",
@@ -3744,7 +3744,20 @@ it.effect("does not refresh pull requests for auxiliary or stale provider termin
           ),
         ]),
     });
-    assert.deepEqual(observed, []);
+    assert.deepEqual(observed, ["run:failed", "pull-requests-refreshed"]);
+  }),
+);
+
+it.effect("fails the active run when its provider subscription ends without a terminal", () =>
+  Effect.gen(function* () {
+    const { written, observed } = yield* captureRootRunTermination({
+      key: "provider-subscription-ended",
+      shouldFinalizeRun: () => Effect.succeed(true),
+      events: () => Stream.empty,
+    });
+    assert.deepEqual(observed, ["run:failed", "pull-requests-refreshed"]);
+    const error = written.find((item) => item.type === "error");
+    assert.include(error?.failure.message ?? "", "provider event stream closed unexpectedly");
   }),
 );
 

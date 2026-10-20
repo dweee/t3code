@@ -1316,7 +1316,11 @@ export const layer: Layer.Layer<
               Effect.gen(function* () {
                 const terminal = yield* Ref.get(terminalEvent);
                 if (terminal === null) {
-                  return;
+                  return yield* new ProviderAdapter.ProviderAdapterEventStreamError({
+                    driver: input.providerThread.driver,
+                    providerSessionId: input.providerSessionId,
+                    cause: "Provider event subscription ended before the root turn completed.",
+                  });
                 }
                 yield* finalizeRootRun(terminal);
               }),
